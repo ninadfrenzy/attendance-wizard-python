@@ -35,6 +35,53 @@ def authenticate(user,password):
 	else:
 		return False
 
+
+def display_only_defaulters(file_name):
+	count=0
+	#pages has to be in form '1,2,...n'
+	infile = PdfFileReader(file_name, 'rb')
+	output = PdfFileWriter()
+	formatted_str_pages=''
+	pages=0
+	for i in range(infile.getNumPages()):
+		p = infile.getPage(i)
+		if len(p.extractText())>100:
+         # getContents is None if  page is blank
+			output.addPage(p)
+			pages=pages+1
+			formatted_str_pages = formatted_str_pages+str(pages)+','
+
+	formatted_str_pages = formatted_str_pages[0:len(formatted_str_pages)-1]
+
+	tables = camelot.read_pdf(file_name, pages=formatted_str_pages)
+	tables = tables[1:]
+	frames = []
+	for table in tables:
+		frames.append(table.df)
+	cnt=0
+	for index,row in tables[0].df.iterrows():
+		if '01' in row[0]:
+			break
+		else:
+			cnt = cnt+1
+
+	new_data_frame = pd.concat(frames).iloc[cnt:]
+	
+	for col in new_data_frame.columns:
+		pd.to_numeric(new_data_frame[col],errors='coerce')
+		def_list = list()
+	for index,row in new_data_frame.iterrows():
+		row = row.tolist()
+		
+		if(float(row[-1])<=75):
+			name = row[1]+" "*(40-len(row[1]))
+			def_list.append([name,row[-1]])
+	f = lambda x:"\t".join(x)
+	def_str = "\n".join(f(x) for x in def_list)
+	return def_str
+	
+
+
 def clean_data(file_name,sub_list):
 	count=0
 	#pages has to be in form '1,2,...n'
@@ -132,18 +179,44 @@ def find_irregulars(tb,data_frame,connection):
 		label_list=label_list[2:-3]
 		for i in range(len(row_list)):
 			if(row_list[i]<75):
-				sub_defaulters.append([row['name'],label_list[i],row_list[i]])
-	f = lambda x: "\t\t\t".join(map(str,x))
+				formt = row['name']
+				formt=formt+" "*(40-len(formt))
+				formtlabel = label_list[i]
+				formtlabel = formtlabel+" "*(10-len(formtlabel))
+				
+				sub_defaulters.append([formt,formtlabel,row_list[i]])
+	
+	f = lambda x:"\t".join(map(str,x))
+
 	sub_defaulters_str ="\n".join(f(x) for x in sub_defaulters)
+	
 	crsr=connection.cursor()
 	crsr.execute("select rollno,name,total from "+tb+" where total<75 and total <>100")
 	res=crsr.fetchall()
-	f = lambda x: "\t\t\t".join(map(str,x))
+	
+	res = [list(x) for x in res]
+	for tup in res:
+		zero = tup[0]
+		one = tup[1]
+		tup[0] = tup[0]+" "*(12-len(tup[0]))
+		tup[1] = tup[1]+" "*(40-len(tup[1]))
+	f = lambda x: "\t\t".join(map(str,x))
 	defaulters_str ="\n".join(f(x) for x in res)
+
+
 	crsr.execute("select rollno,name,total from "+tb+" where total between 75 and 80")
 	res=crsr.fetchall()
-	f = lambda x: "\t\t\t".join(map(str,x))
+	res = [list(x) for x in res]
+	for tup in res:
+		zero = tup[0]
+		one = tup[1]
+		tup[0] = tup[0]+" "*(12-len(tup[0]))
+		tup[1] = tup[1]+" "*(40-len(tup[1]))
+
+	
+	f = lambda x: "\t\t".join(map(str,x))
 	warnings_str ="\n".join(f(x) for x in res)
+
 	return defaulters_str,warnings_str,sub_defaulters_str
 
 
@@ -160,7 +233,9 @@ def top_five(data_frame):
 	
 	for i,row in data_frame.iterrows():
 		if(float(row['total']) in setlist):
-			top_list.append([row['name'],row['total']])  
+			name = row['name']
+			name = name+" "*(40-len(name))
+			top_list.append([name,row['total']])  
 		
 	temp = (sorted(top_list,key=sort_fn,reverse=True))
 	
@@ -339,16 +414,16 @@ def correlate(data_frame):
 def counting(connection,table_name):
 	crsr=connection.cursor()
 	tup = (table_name,)
-	crsr.execute('select count(*) from t1 where total<75.0')
+	crsr.execute('select count(*) from '+table_name+' where total<75.0')
 	num_def=crsr.fetchone()
 	num_def=[str(item) for item in num_def]
 	crsr.execute('select count(*) from '+table_name+' where total between 75 and 80')
 	num_war=crsr.fetchone()
 	num_war=[str(item) for item in num_war]
-	crsr.execute('select count(*) from '+table_name+' where aoa<75 or cn<75 or dbms<75 or sd<75 or isee<75 or sepm<75 or toc<75 or cnl<75 or dbmsl<75 or sdl<75')
-	num_subdef=crsr.fetchone()
-	num_subdef=[str(item) for item in num_subdef]
-	return "".join(num_def),"".join(num_subdef),"".join(num_war)
+	# crsr.execute('select count(*) from '+table_name+' where aoa<75 or cn<75 or dbms<75 or sd<75 or isee<75 or sepm<75 or toc<75 or cnl<75 or dbmsl<75 or sdl<75')
+	# num_subdef=crsr.fetchone()
+	# num_subdef=[str(item) for item in num_subdef]
+	return "".join(num_def),"".join(num_war)
 
 	
 	

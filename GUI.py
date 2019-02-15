@@ -8,8 +8,11 @@
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from rep_lgc import *
+import warnings
+warnings.filterwarnings('ignore')
 printstring = ""
 tablename = ""
+def_str = ""
 class Ui_login_page(object):
     def setupUi(self, login_page):
         login_page.setObjectName("login_page")
@@ -229,45 +232,59 @@ class Ui_ReportSelection_page(object):
     def submit(self):
         global tablename
         date_gen = self.dateInput.text()
+
         subjects = self.SubjectInput.toPlainText()
-        subjects = ["rollno","name"]+list(subjects.split(","))
+        if(subjects!=""):
+
+            subjects = ["rollno","name"]+list(subjects.split(","))
         
         file = self.filename
         date_gen = date_gen.replace("/","_")
+	date_gen = date_gen.replace("-","_")
         #print(date_gen,subjects,file)
-        if(date_gen!="" and subjects!="" and file!=""):
-            self.tablename="report"+date_gen
-            self.frame,total_str = clean_data(file,subjects)
-            store_data(self.frame,self.tablename)
-        else:
-            self.tablename = str(self.selectReportInput.currentText())
-            if(self.tablename!=""):
-                self.frame,total_str = get_from_db(self.tablename,create_connection())
-            else:
-                err = QtWidgets.QMessageBox()
-                err.setText('No Report selected!')
-                err.setIcon(QtWidgets.QMessageBox.Critical)
-                err.exec_()
 
-        global printstring
-        self.defaulters_str,self.warnings_str,self.sub_defaulters_str = find_irregulars(self.tablename,self.frame,create_connection())
-        self.five_str = top_five(self.frame)
-        self.most_bk = most_bunked_sub(self.frame)
-        decoration = (["\n**************************AVERAGE ATTENDANCE**************************\n",
-            "\n\n\n**************************TOP FIVE ATTENTIVE**************************\n\n",
-            "\n\n\n******************************DEFAULTERS******************************\n\n",
-            "\n\n\n****************************SUB-DEFAULTERS****************************\n\n",
-            "\n\n\n*******************************WARNINGS*******************************\n\n",
-            "\n\n\n********************************MESSAGE*******************************\n\n",
-            "\n\n\nATTENDANCE WAS OBSERVED TO BE LESS IN: \n\n",
-            "\n\n\nNUMBER OF DEFAULTERS:",
-            "\n\n\nNUMBER OF SUBJECT-DEFAULTERS:",
-            "\n\n\nNUMBER OF WARNINGS:"])
-        printstring = printstring+decoration[0]+total_str+decoration[2]+self.defaulters_str+decoration[4]+self.warnings_str+decoration[3]+self.sub_defaulters_str+decoration[1]+self.five_str+decoration[6]+self.most_bk
-        summary_ui = Ui_summary_page()
-        summary_ui.setupUi(summary_page)
-        summary_page.show()
-        report_page.close()        
+        if (len(subjects)<=2 and date_gen!="" and file!=""):
+            global def_str
+            def_str = display_only_defaulters(file)
+            def_ui = Ui_only_def_page()
+            def_ui.setupUi(only_def)
+            only_def.show()
+            report_page.close()
+        else:
+            if(date_gen!="" and subjects!="" and file!=""):
+                self.tablename="report"+date_gen
+                self.frame,total_str = clean_data(file,subjects)
+                store_data(self.frame,self.tablename)
+            else:
+                self.tablename = str(self.selectReportInput.currentText())
+                if(self.tablename!=""):
+                    self.frame,total_str = get_from_db(self.tablename,create_connection())
+                else:
+                    err = QtWidgets.QMessageBox()
+                    err.setText('No Report selected!')
+                    err.setIcon(QtWidgets.QMessageBox.Critical)
+                    err.exec_()
+
+            global printstring
+            self.defaulters_str,self.warnings_str,self.sub_defaulters_str = find_irregulars(self.tablename,self.frame,create_connection())
+            self.five_str = top_five(self.frame)
+            self.most_bk = most_bunked_sub(self.frame)
+            self.df,self.wr = counting(create_connection(),self.tablename)
+            decoration = (["\n************************************AVERAGE ATTENDANCE************************************\n",
+                "\n\n\n************************************TOP FIVE ATTENTIVE************************************\n\n",
+                "\n\n\n****************************************DEFAULTERS****************************************\n\n",
+                "\n\n\n**************************************SUB-DEFAULTERS**************************************\n\n",
+                "\n\n\n*****************************************WARNINGS*****************************************\n\n",
+                "\n\n\n******************************************MESSAGE*****************************************\n\n",
+                "\n\n\nATTENDANCE WAS OBSERVED TO BE LESS IN: \n\n",
+                "\n\n\nNUMBER OF DEFAULTERS:",
+                "\n\n\nNUMBER OF SUBJECT-DEFAULTERS:",
+                "\n\n\nNUMBER OF WARNINGS:"])
+            printstring = printstring+decoration[7]+self.df+"\n"+decoration[9]+self.wr+"\n"+decoration[0]+total_str+decoration[2]+self.defaulters_str+decoration[4]+self.warnings_str+decoration[3]+self.sub_defaulters_str+decoration[1]+self.five_str+decoration[6]+self.most_bk
+            summary_ui = Ui_summary_page()
+            summary_ui.setupUi(summary_page)
+            summary_page.show()
+            report_page.close()        
 
     def clear(self):
         flush()
@@ -289,6 +306,76 @@ class Ui_ReportSelection_page(object):
         addbutton.move(50,100)
         addbutton.clicked.connect(add_to_users)
         dialog.exec_()
+
+
+
+class Ui_only_def_page(object):
+    def setupUi(self, summary_page):
+        summary_page.setObjectName("summary_page")
+        summary_page.resize(783, 640)
+        font = QtGui.QFont()
+        font.setFamily("Nirmala UI")
+        font.setPointSize(22)
+        summary_page.setFont(font)
+        summary_page.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        summary_page.setToolTip("")
+        summary_page.setWhatsThis("")
+        summary_page.setAccessibleName("")
+        summary_page.setAccessibleDescription("")
+        self.attendanceWizard = QtWidgets.QWidget(summary_page)
+        self.attendanceWizard.setObjectName("attendanceWizard")
+
+        font = QtGui.QFont()
+        font.setPointSize(11)
+
+        self.backButton = QtWidgets.QCommandLinkButton(self.attendanceWizard)
+        self.backButton.setGeometry(QtCore.QRect(0, 0, 222, 81))
+        font = QtGui.QFont()
+        font.setFamily("Segoe UI")
+        font.setPointSize(13)
+        self.backButton.setFont(font)
+        self.backButton.setToolTip("")
+        icon = QtGui.QIcon()
+        icon.addPixmap(QtGui.QPixmap("32-512.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.backButton.setIcon(icon)
+        self.backButton.setIconSize(QtCore.QSize(40, 40))
+        self.backButton.setObjectName("backButton")
+        self.backButton.clicked.connect(self.goback)
+        self.summaryOutput = QtWidgets.QTextBrowser(self.attendanceWizard)
+        self.summaryOutput.setGeometry(QtCore.QRect(20, 100, 731, 401))
+        self.summaryOutput.setObjectName("summaryOutput")
+        global def_str
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        font.setFamily("Monospace")
+        self.summaryOutput.setText(def_str)
+        self.summaryOutput.setFont(font)
+       
+        self.summarylabel = QtWidgets.QLabel(self.attendanceWizard)
+        self.summarylabel.setGeometry(QtCore.QRect(290, 20, 201, 51))
+        font = QtGui.QFont()
+        font.setFamily("Nirmala UI")
+        font.setPointSize(22)
+        font.setBold(True)
+        font.setWeight(75)
+        self.summarylabel.setFont(font)
+        self.summarylabel.setObjectName("summarylabel")
+        summary_page.setCentralWidget(self.attendanceWizard)
+        self.statusbar = QtWidgets.QStatusBar(summary_page)
+        self.statusbar.setObjectName("statusbar")
+        summary_page.setStatusBar(self.statusbar)
+        self.retranslateUi(summary_page)
+        QtCore.QMetaObject.connectSlotsByName(summary_page)
+
+    def retranslateUi(self, summary_page):
+        _translate = QtCore.QCoreApplication.translate
+        summary_page.setWindowTitle(_translate("summary_page", "Attendance Wizard "))
+        self.backButton.setText(_translate("summary_page", "Back"))
+        self.summarylabel.setText(_translate("summary_page", "Summary"))
+    @staticmethod
+    def goback(self):
+        report_page.show()
+        only_def.close()
 
 
 class Ui_mail_page(object):
@@ -617,7 +704,8 @@ class Ui_summary_page(object):
         self.summaryOutput.setObjectName("summaryOutput")
         global printstring
         font = QtGui.QFont()
-        font.setPointSize(12)
+        font.setPointSize(10)
+        font.setFamily("Monospace")
         self.summaryOutput.setText(printstring)
         self.summaryOutput.setFont(font)
         self.searchButton = QtWidgets.QPushButton(self.attendanceWizard)
@@ -728,6 +816,7 @@ if __name__ == "__main__":
     report_page = QtWidgets.QMainWindow()
     summary_page = QtWidgets.QMainWindow()
     mail_page = QtWidgets.QMainWindow()
+    only_def = QtWidgets.QMainWindow()
     search_page = QtWidgets.QMainWindow()
     login_ui = Ui_login_page()
     rep_ui = Ui_ReportSelection_page()
